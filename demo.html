@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport"
+        content="initial-scale=1, maximum-scale=1, user-scalable=no, width=device-width, shrink-to-fit=no">
+  <title>360° 全景</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+    }
+
+    #day, #night {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      position: fixed;
+      transition: all 1.5s;
+    }
+
+    #day {
+      opacity: 1;
+      z-index: 2;
+    }
+
+    #night {
+      opacity: 0;
+      z-index: 1;
+    }
+
+    #typeList {
+      width: 100%;
+      height: 40px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 3;
+      overflow: auto;
+    }
+
+    #typeListContent {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      padding: 0 10px;
+    }
+
+    .type {
+      width: 70px;
+      text-align: center;
+      line-height: 40px;
+      color: #ffffff;
+      padding: 0 15px;
+      flex: none;
+      font-size: 14px;
+    }
+
+    .type.active {
+      border-bottom: 2px solid #ffffff;
+    }
+
+    #icon {
+      width: 48px;
+      height: 48px;
+      position: fixed;
+      background: no-repeat center / 50% 50%;
+      border-radius: 50%;
+      top: 64px;
+      right: 24px;
+      z-index: 3;
+    }
+
+    #icon.day {
+      background-color: rgba(0, 0, 0, 0.5);
+      background-image: url("./day.svg");
+    }
+
+    #icon.night {
+      background-color: rgba(255, 255, 255, 0.5);
+      background-image: url("./night.svg");
+    }
+
+    #info {
+      width: 40%;
+      height: calc(100% - 40px);
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      background-color: rgba(0, 0, 0, 0.85);
+      z-index: 3;
+      transition: all 600ms;
+    }
+
+    #info.close {
+      left: -40%;
+    }
+
+    #infoContent {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      padding-top: 60px;
+    }
+
+    #infoClose {
+      width: 50px;
+      height: 50px;
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: url("./close.svg") no-repeat center / 40%;
+    }
+
+    #title {
+      color: #ffffff;
+      text-align: center;
+      font-size: 18px;
+      padding: 0 30px;
+    }
+
+    #introductions {
+      max-height: calc(100% - 140px);
+      color: #ffffff;
+      margin-top: 30px;
+      padding: 0 30px;
+      text-indent: 2em;
+      text-align: justify;
+      font-size: 14px;
+      overflow: auto;
+    }
+  </style>
+</head>
+
+<body>
+<div id="day">
+</div>
+<div id="night">
+</div>
+<div id="typeList">
+  <div id="typeListContent">
+  </div>
+</div>
+<div id="info" class="close">
+  <div id="infoContent">
+    <div id="infoClose" onclick="closeInfo()">
+    </div>
+    <div id="title">
+    </div>
+    <div id="introductions">
+    </div>
+  </div>
+</div>
+<div id="icon" class="day" onclick="exchange()">
+</div>
+<script src="./three.min.js"></script>
+<script src="./panolens.min.js"></script>
+<script>
+
+  var isDay = true
+  var typeListContent = document.getElementById('typeListContent')
+  var icon = document.getElementById('icon')
+  var info = document.getElementById('info')
+  var title = document.getElementById('title')
+  var introductions = document.getElementById('introductions')
+  var day = document.getElementById('day')
+  var night = document.getElementById('night')
+  var dayViewer, dayPanorama, nightViewer, nightPanorama;
+  var parameters = [
+    {x: 35, y: 5, z: 20, spot: 'spot_001.png', title: "可口可乐伦敦眼", english: "Coca-Cola London Eye", type: '默林景点', introductions: "伦敦的标志性旅游胜地——可口可乐伦敦眼（Coca-Cola London Eye）是英国最热门的收费景点，也是全球最受欢迎的求婚地点之一。登上伦敦眼观光舱，升上135米的高空，在这趟30分钟的空中之旅中，将伦敦360度的壮阔美景尽收眼底。若天气晴好，最远还能看到温莎城堡。", longitude: -0.1194976, latitude: 51.5032731,},
+    {x: 70, y: 30, z: 0, spot: 'spot_002.png', title: "伦敦杜莎夫人蜡像馆", english: "Madame Tussauds London", type: '默林景点', introductions: "走进位于贝克街，建于1836年的杜莎夫人蜡像馆，在聚光灯下邂逅名人巨星，置身于 “异形：逃脱”、“英国好声音”和“星球大战”等主题仿真展区，与250尊惟妙惟肖的名人蜡像亲密接触，乐享这段伦敦之旅的妙趣时光！", longitude: -0.1545160, latitude: 51.5230510,},
+    {x: 5, y: -15, z: 30, spot: 'spot_003.png', title: "伦敦地牢", english: "The London Dungeon", type: '默林景点', introductions: "伦敦地牢 (The London Dungeon) 是一处令人胆颤心惊的独特景点，它将带您回到伦敦历史中最黑暗凄惨的时期。通过视觉、听觉、触觉、嗅觉刺激您的感官，让您体验真实而丰富的感官效果。", longitude: -0.1187494, latitude: 51.5024669,},
+    {x: 15, y: -10, z: 30, spot: 'spot_004.png', title: "史瑞克冒险乐园", english: "Shrek’s Adventure! London", type: '默林景点', introductions: "加入寻找史瑞克的队伍吧！这是一场身临其境又令人疯狂的互动体验，全家人可以像电影角色一样，开启一段遥远王国 (Far Far Away) 穿越之旅。", longitude: -0.1194206, latitude: 51.5015357,},
+    {x: 20, y: -7, z: 30, spot: 'spot_005.png', title: "伦敦水族馆", english: "SEA LIFE London", type: '默林景点', introductions: "想要探险？就来伦敦水族馆 (SEA LIFE London) 吧！准备好面对这些海底庞然大物们闪闪发光的鳞片，巨大的触角和锋利的牙齿，融入生动、真实的海底世界。与一些鲜为人知又妙趣横生的海底生物见面。", longitude: -0.1196236, latitude: 51.5015416,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_006.png', title: "尤克里里琴行", english: "Duke of Uke", type: '吃喝玩购', introductions: "Duke of Uke是一家尤克里里琴行，在这里，游客不仅可以选购精致的尤克里里，学习弹奏尤克里里，还可以观看精彩的现场表演。", longitude: -0.0677471, latitude: 51.5236235,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_007.png', title: "Persepolis 美食店", english: "Persepolis", type: '吃喝玩购', introductions: "想要一尝《Persia in Peckham》一书中所描述的人间美味？不妨到集食品杂货店、餐厅和手工艺品店于一身的Persepolis品尝伊朗风味美食。", longitude: -0.0716787, latitude: 51.4733883,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_008.png', title: "维京时代工艺品店", english: "The Viking Store", type: '吃喝玩购', introductions: "The Viking Store维京时代工艺品店坐落在沃尔瑟姆斯托（Walthamstow）中心地段，从维京人的号角、珠宝首饰到服装、盔甲和各种小道具，在The Viking Store维京时代工艺品店都可以找到。　", longitude: -0.2269192, latitude: 51.5475847,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_009.png', title: "动物标本店", english: "Get Stuffed", type: '吃喝玩购', introductions: "Get Stuffed动物标本店位于伦敦北部，已有40余年历史，这里提供质量最上乘，还原度高的动物标本！", longitude: -0.0039103, latitude: 51.5881386,},
+    {x: -38, y: 26, z: -60, spot: 'spot_010.png', title: "科芬园", english: "Covent Garden", type: '吃喝玩购', introductions: "在亨利三世下令拆除所有修道院和贝德福德公爵接管这片土地前，这里曾是一座修道院，科芬园的名字就源于这里的女修道院，早在17世纪，这里就开始出现一些市集。如今，作为英国皇家大剧院的所在地，科芬园（Covent Garden）最出名的莫过于从早到晚的市集、林立的商铺餐厅和精彩的街头艺人表演。", longitude: -0.0990175, latitude: 51.5388491,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_011.png', title: "红砖巷和哥伦比亚路市场", english: "Brick Lane and Columbia Road Markets", type: '吃喝玩购', introductions: "每逢周日10:00-17:00，红砖巷（Brick Lane）都会有奇特的东伦敦区跳蚤市场。沿着红砖巷一路前行，就会来到哥伦比亚路花市（Columbia Road Markets，逢周日8:00-15:00开放）。早早地出发便能享受到一顿最鲜美的早午餐，晚了也无妨，还有物美价廉的商品等着您。", longitude: -0.1231911, latitude: 51.5117797,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_012.png', title: "哈罗兹百货公司", english: "Harrods", type: '吃喝玩购', introductions: "1834年，创始人查尔斯•亨利•哈洛德在斯特普内（Stepney）开了第一家杂货店，当时店内只有三名员工，那年，他只有25岁。1849年，店铺迁址到骑士桥并进行了扩大。1851年，随着水晶宫（Crystal Palace）店的开业，哈罗兹百货（Harrods）的客流量不断增多，业务也蒸蒸日上。1971年，竞争对手的老板哈里·戈登·塞尔福里奇(Harry Gordon Selfridge)与哈罗兹百货的董事总经理打赌谁能在那一年赚的更多。最终，塞尔福里奇输掉了这场赌约，并托人制作了一座银制的哈罗兹百货模型，如今，这座模型依然摆放在负一楼。", longitude: -0.0718903, latitude: 51.5212121,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_013.png', title: "泰晤士河南岸", english: "The South Bank", type: '吃喝玩购', introductions: "泰晤士河南岸（The South Bank）可谓是娱乐和商业中心，景点、餐厅、商铺和酒店林立于泰晤士河河畔。白日或黄昏时分，到泰晤士河南岸悠然散步，饱览沿途美景，或安坐岸上，凝视远方，放松身心！不要错过可口可乐伦敦眼，以及当地人常去的瞭望路（Belvedere Road）南岸中心的美食市集，还有滑铁卢桥下的书市或滑板公园哦！", longitude: -0.1632344, latitude: 51.4994055,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_014.png', title: "博罗市场", english: "Borough Market", type: '吃喝玩购', introductions: "相传超过千年历史的博罗市场（Borough Market）可能是英国最著名的美食市集。这里每周一到周六开放，汇聚了数百家来自全球各地的商贩和小食店，从芝士、鱼、烧烤到西班牙什锦饭，各类美食应有尽有！", longitude: -0.1183628, latitude: 51.5028924,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_015.png', title: "牛津街", english: "Oxford Street", type: '吃喝玩购', introductions: "牛津街（Oxford Street）是伦敦的主要购物区，从牛津圆环（Oxford Circus）一直延伸到大理石拱门（Marble Arch）。许多主流高街品牌都在牛津街设有旗舰店，区内还有耐克城（Niketown）和塞尔弗里奇百货。走出繁华的大街，沿着小巷前行，寻觅藏匿于小巷中的惊喜也别有一番乐趣！", longitude: -0.0911084, latitude: 51.5054740,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_016.png', title: "肖尔迪奇盒子公园", english: "BOXPARK Shoreditch", type: '吃喝玩购', introductions: "肖尔迪奇盒子公园（BOXPARK Shoreditch）由英国潮牌Boxfresh的Robert Wade创立，他们将集装箱打造成汇集潮流商铺、酒吧和餐馆的迷你潮流购物中心，创意十足。 ", longitude: -0.1308140, latitude: 51.5164116,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_017.png', title: "西田斯特拉特福德城", english: "Westfield Stratford City", type: '吃喝玩购', introductions: "西田斯特拉特福德城（Westfield Stratford City）位于原奥运会会址旁，是欧洲规模最大的购物广场。几乎所有您想得到的品牌商店在这里都能找得到，各色餐厅也应有尽有，更有充足的停车位和便捷的公共交通。肯辛顿也有一座西田斯特拉特福德城，虽然规模稍小，但同样应有尽有！", longitude: -0.0765660, latitude: 51.5235307,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_018.png', title: "Blade橡皮章店", english: "Blade Rubber Stamps", type: '吃喝玩购', introductions: "Blade橡皮章店（Blade Rubber Stamps）是伦敦一家拥有20余年历史的印章店。店内有玲琅满目的橡皮章、饰品、日志本、剪贴簿和纸制工艺品。您还能在店内制作专属的橡皮章！", longitude: -0.0067327, latitude: 51.5432793,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_019.png', title: "卡姆登跳蚤市场", english: "Camden Lock Market", type: '吃喝玩购', introductions: "比起高街潮牌和连锁餐厅，如果您更喜欢稀奇古怪的摊铺和更接地气的街头小食，坐落在摄政运河旁的卡姆登跳蚤市场（Camden Lock Market）绝对是您旅途中不容错过的精彩一站。若想避开拥挤的人群，建议早早出发或选择在工作日前往。", longitude: -0.1243544, latitude: 51.5184839,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_020.png', title: "波特贝罗路市场", english: "Portobello Market", type: '吃喝玩购', introductions: "波特贝罗路市场（Portobello Market）是全世界最大的古董市集，超过一千个摊位在诺丁山颜色鲜艳的房屋之间摆放着玲琅满目的商品。这里平日也会售卖各类商品，但每逢周六就会摇身变成处处充满惊喜的古董市场。", longitude: -0.1461979, latitude: 51.5413758,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_021.png', title: "旧斯毕塔菲尔德市场", english: "Old Spitalfields Market", type: '吃喝玩购', introductions: "从利物浦街车站步行分钟即可到达这个棚内市场，旧斯毕塔菲尔德市场（Old Spitalfields Market）内各类售卖食品、饮料、服装、鞋履、艺术品和黑胶唱片的摊位鳞次栉比。早在350多年以前，旧斯毕塔菲尔德市场的所在地就开始有市集出现。", longitude: -0.0754862, latitude: 51.5197762,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_022.png', title: "哈姆雷斯玩具店", english: "Hamleys", type: '吃喝玩购', introductions: "哈姆雷斯玩具店（Hamleys）是世界上历史最悠久、规模最大、知名度最高的玩具店，7层高的店内摆放着5万多件玩具，更有趣味十足的现场示范和一年一度的盛大游行带给您无穷乐趣。哈姆雷斯玩具店于1760年在伦敦开设了第一家店铺，于1881年在摄政街开设了一家旗舰店。", longitude: -0.0863191, latitude: 51.5051567,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_023.png', title: "福特南·梅森百货", english: "Fortnum and Mason", type: '吃喝玩购', introductions: "被誉为全球最奢华百货公司的福特南·梅森百货（Fortnum and Mason）于1701年在卡迪利大街开业，距丽兹酒店和The Wolseley酒店仅数步之遥。从礼物蓝到高档的茶叶、咖啡和精致考究的甜食，这里的商品应有尽有，让人眼花缭乱！", longitude: -0.1384361, latitude: 51.5083583,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_024.png', title: "詹姆士史密斯伞店", english: "James Smith & Sons Umbrella Shop", type: '吃喝玩购', introductions: "1830年开业的詹姆士史密斯伞店（James Smith & Sons Umbrella Shop）至今依然在维多利亚时期建造的店铺内售卖着各色精致的英式雨伞、阳伞和拐杖，詹姆士史密斯伞店还提供伞具和拐杖修补服务。", longitude: -0.1266807, latitude: 51.5168276,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_025.png', title: "莱斯特广场乐高旗舰店", english: "LEGO® Store Leicester Square", type: '吃喝玩购', introductions: "这个全球最大的乐高店铺于2016年落户伦敦，店内用积木砌成的大本钟、龙和邮箱生动逼真，那节按一比一比例用637,903块积木，耗时4千个小时砌成的地铁车厢更是令惊叹不已，车厢内还坐着大文豪“莎士比亚”，十分有趣！", longitude: -0.1310527, latitude: 51.5103991,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_026.png', title: "尼尔院子手工奶酪店", english: "Neal's Yard Dairy", type: '吃喝玩购', introductions: "尼尔院子手工奶酪店（Neal's Yard Dairy）出售40种英国和爱尔兰奶酪，还开设有奶酪课程并提供奶酪订送服务。尼尔院子手工奶酪店在博罗市场（Borough Market）和柏蒙西（Bermondsey）也开有分店。", longitude: -0.1262841, latitude: 51.5142577,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_027.png', title: "卡波内尔和沃克巧克力店", english: "Charbonnel et Walker", type: '吃喝玩购', introductions: "作为伦敦最古老的巧克力店，卡波内尔和沃克巧克力店（Charbonnel et Walker）从1875年开业至今，已在新邦德街（New Bond Street）173号经营了142年。如今，卡波内尔和沃克巧克力店在老邦德街（Old Bond Street）、金丝雀码头和利物浦街也开设了分店。", longitude: -0.0205858, latitude: 51.5050031,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_028.png', title: "伦敦眼酒吧", english: "Eye Lounge", type: '吃喝玩购', introductions: "伦敦眼酒吧（Eye Lounge）位于伦敦眼旁的市政厅内。在这里小酌几杯沁人心脾的伯瑞皇家干型香槟或清爽精致的鸡尾酒，以此开启或结束精彩的可口可乐伦敦眼之旅岂不妙哉！", longitude: -0.1194976, latitude: 51.5032731,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_029.png', title: "戈登酒吧", english: "Gordon's Wine Bar", type: '吃喝玩购', introductions: "坐落在堤岸（Embankment）旁的戈登酒吧（Gordon's Wine Bar）于19世纪开业，是伦敦历史最悠久的酒吧。这家藏身于酒窖之中，拱顶之下的酒吧依旧保留着狄更斯风格的装饰，种类齐全的美酒和奶酪也是这家酒吧的一大特色。", longitude: -0.1233713, latitude: 51.5079682,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_030.png', title: "Bounce Farringdon意式餐厅", english: "Bounce Farringdon", type: '吃喝玩购', introductions: "Bounce Farringdon餐厅是一家保留着20世纪50年代风格的鸡尾酒吧和比萨餐厅，红色皮革打造的用餐区洋溢着浓浓的复古气息，店内更有17张兵乓球台供食客租用（按小时或半小时计）。", longitude: -0.1083496, latitude: 51.5180267,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_031.png', title: "全明星保龄球馆", english: "All Star Lanes", type: '吃喝玩购', introductions: "保龄球、鸡尾酒和自制美食，尽在全明星保龄球馆（All Star Lanes）。这里可同时容纳80人，设有两条保龄球道的保龄球场，同时也是一家鸡尾酒吧，适合私人聚会。", longitude: -0.0077437, latitude: 51.5432626,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_032.png', title: "伦敦跑马场", english: "The Hippodrome Casino London", type: '吃喝玩购', introductions: "伦敦跑马场（The Hippodrome Casino London）坐落在莱斯特广场，是一个大型娱乐场。这里设施齐全，除娱乐设施外，这里还设有可播放体育赛事的酒吧、牛排餐厅以及有现场节目表演和戏剧之夜活动的小型戏院。", longitude: -0.1290725, latitude: 51.5114837,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_033.png', title: "法布里克夜总会", english: "Fabric", type: '吃喝玩购', introductions: "法布里克夜总会（Fabric）曾多次占据《DJ Magazine》榜单的第一二名。2016年，法布里克夜总会因市议会责令关闭而濒临结业，但大规模的支持运动让法布里克夜总会得以在几个月后重新开门营业。", longitude: -0.1025951, latitude: 51.5196352,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_034.png', title: "Ministry of Sound夜总会", english: "Ministry of Sound", type: '吃喝玩购', introductions: "1991年开始营业的Ministry of Sound俱乐部藏身于大象城堡区（Elephant and Castle）内一处废弃的公车车库。Ministry of Sound俱乐部是伦敦首家美国浩室音乐俱乐部。这也是创始人Justin Berkmann以纽约的Paradise Garage俱乐部为灵感，在伦敦打造了第一家以美国浩室音乐为主题的俱乐部。", longitude: -0.0995666, latitude: 51.4977244,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_035.png', title: "Roundhouse音乐表演场所", english: "Roundhouse", type: '吃喝玩购', introductions: "Roundhouse这个著名的圆形音乐表演场所坐落在建于1847年，现已被列为二级历史建筑的火车头厂房旧址上。曾在这里登台演出的歌手包括大卫·鲍伊、鲍勃·迪伦、吉米·亨德里克斯和滚石乐队。", longitude: -0.1519854, latitude: 51.5432496,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_036.png', title: "Little Nan's 酒吧", english: "Little Nan's Bar", type: '吃喝玩购', introductions: "2013年，Tristan为了纪念其已故的奶奶，创立了Little Nan's 酒吧。他在酒吧中融入了奶奶生前使用的家具和祖传之宝，以此表达对奶奶的思念。Little Nan's 酒吧屡获殊荣，被评为伦敦最佳酒吧。这家酒吧的另一大特色就是用各种奇怪的容器，比如茶壶、花瓶等，来盛随意调制的鸡尾酒。", longitude: -0.0269517, latitude: 51.4787285,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_037.png', title: "Bunga Bunga餐厅", english: "Bunga Bunga", type: '吃喝玩购', introductions: "Bunga Bunga餐厅集意式酒吧、餐厅、KTV和夜总会于一身，供应美味的披萨，带给您多重乐趣！", longitude: -0.1229857, latitude: 51.5152483,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_038.png', title: "爵士乐餐厅", english: "The Jazz Café", type: '吃喝玩购', introductions: "爵士乐餐厅（The Jazz Café）位于卡姆登，餐厅氛围幽静舒适，经常举办俱乐部之夜活动，更会邀请本国和外国爵士乐、灵魂乐和雷鬼乐歌星登台献唱，表演嘉宾的名单绝无重复。", longitude: -0.1432031, latitude: 51.5387381,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_039.png', title: "Ronnie Scott's爵士乐酒吧", english: "Ronnie Scott's", type: '吃喝玩购', introductions: "1959年开业的Ronnie Scott's爵士乐酒吧坐落在弗里思街（Frith Street）上Soho区的中心地段。艾拉·费兹洁拉、妮娜·西蒙、柯蒂斯·梅菲尔德和普林斯都曾在这里的舞台上留下他们动听的歌声，吉米·亨德里克斯更是于1970年在这里举办了其最后一场公开演出。", longitude: -0.1316659, latitude: 51.5134557,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_040.png', title: "The Comedy Store喜剧俱乐部", english: "The Comedy Store", type: '吃喝玩购', introductions: "The Comedy Store喜剧俱乐部位于伦敦西区，您可能会一不留神就错过她。这家戏剧俱乐部位于Oxendon街上，虽然门脸不大，但是非常有名。The Comedy Store喜剧俱乐每周接待的观众人数达3500人，著名的单口表演以及由Paul Merton和Josie Lawrence主演的例牌节目吸引了许多观众慕名前来，门票也非常抢手。", longitude: -0.1323889, latitude: 51.5101767,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_041.png', title: "Soho剧院", english: "Soho Theatre", type: '吃喝玩购', introductions: "Soho剧院（Soho Theatre）共有四个舞台，知名演员和崭露头角的年轻演员都会在这四个舞台上为观众献上精彩的新戏剧、喜剧和卡巴莱歌舞表演。剧院内有一处酒吧，让观众可以在观看表演前后小酌几杯，如果运气不错的话，兴许还能在这里碰见戏剧和喜剧演员。", longitude: -0.1330651, latitude: 51.5144546,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_042.png', title: "Riley's体育酒吧", english: "Riley's Sports Bar", type: '吃喝玩购', introductions: "Riley's体育酒吧是一家位于干草市场（Haymarket）的经典体育酒吧，酒吧内有撞球和乒乓球供顾客消遣，3米的高清大屏电视上还会播放精彩的体育赛事。", longitude: 0.0943483, latitude: 51.7686723,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_043.png', title: "皮革巷", english: "Leather Lane", type: '吃喝玩购', introductions: "在新潮的法灵顿（Farringdon）和哈顿公园（Hatton Garden）珠宝角之间坐落着中世纪风格的皮革巷（Leather Lane），每个周末这里都会变成一个大集市，鳞次栉比的摊位前摆满了各色各样的服饰、鞋履和蔬果。如今，这里还成了小餐馆的汇集之地，午餐时间到这里品尝一份美味的咸牛肉三明治、沙拉三明治或分量十足的馅饼，也是不错的选择。", longitude: -0.1093883, latitude: 51.5201079,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_044.png', title: "莫尔特比市场", english: "Maltby Street Market", type: '吃喝玩购', introductions: "2010年，寥寥的几名商贩在Ropewalk的铁道拱桥下摆摊贩卖，这就是莫尔特比市场的雏形。如今，这里已成为了一个真正的街市。莫尔特比市场逢周六9：00-16：00和周日11：00-16：00开放。附近的Spa Terminus也有一些商家可以逛逛（逢周六开放）。", longitude: -0.0763804, latitude: 51.4996741,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_045.png', title: "唐宁街10号", english: "10 Downing Street", type: '吃喝玩购', introductions: "唐宁街10号是英国首相的官邸和办公室。", longitude: -0.1277262, latitude: 51.5032577,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_046.png', title: "唐人街", english: "Chinatown", type: '吃喝玩购', introductions: "在Soho区和莱斯特广场之间有一个巨大的中式大门，门上刻着栩栩如生的飞龙，挂着别具中国特色的灯笼，这里就是唐人街了。走过这个大门，映入眼帘的是街道两侧林立的中式餐厅、KTV、珍珠奶茶店、面包店、超市和纪念品商店，让人倍感亲切。", longitude: -0.1315474, latitude: 51.5107973,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_047.png', title: "巴特勒码头大楼", english: "Butler's Wharf", type: '吃喝玩购', introductions: "巴特勒码头大楼（Butler's Wharf）最初是一个航运码头，曾经是世界上最大的茶叶仓库。如今，这座俯瞰伦敦塔桥和圣凯瑟琳码头（St Katharine Docks）的大楼已经成为豪华公寓、餐厅、酒吧和办公室的聚集之地。", longitude: -0.0738780, latitude: 51.5039009,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_048.png', title: "Beigel Bake贝果店", english: "Beigel Bake", type: '吃喝玩购', introductions: "24小时营业的Beigel Bake贝果店每日制作7千个贝果，恐怕没有比Beigel Bake的贝果更好吃的贝果了！一定要尝尝这里传统风味的犹太贝果，也可以试下咸牛肉贝果！", longitude: -0.0717992, latitude: 51.5245174,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_049.png', title: "B.Y.O.C. East鸡尾酒吧", english: "B.Y.O.C. East", type: '吃喝玩购', introductions: "“请自带鸡尾酒”，没错，带上您最喜欢的那瓶酒，每人只需支付25英镑的服务费，酒保就会在接下来的两小时内为您调制各种美味的鸡尾酒。", longitude: -0.0786552, latitude: 51.5147706,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_050.png', title: "麦片杀手咖啡馆", english: "Cereal Killer Cafe", type: '吃喝玩购', introductions: "麦片杀手咖啡馆（Cereal Killer Cafe）以鲜艳的颜色和复古的气息营造出一种欢乐的氛围，这里有超过120款麦片，每一款都有着童年的味道，除了麦片外，还有各种牛奶和麦片配料任君选择。", longitude: -0.0786849, latitude: 51.5147479,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_051.png', title: "南岸中心美食市集", english: "Southbank Centre Food Market", type: '吃喝玩购', introductions: "这个让人惊喜不已的美食市集就位于泰晤士南岸一隅，每逢周末开放。鳞次栉比的摊位让人一时间不知如何选择。", longitude: -0.1162254, latitude: 51.5054368,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_052.png', title: "猫咪主题咖啡馆", english: "Lady Dinah’s Cat Emporium", type: '吃喝玩购', introductions: "这家咖啡馆住着12只可爱的小猫，这些小猫在两层高的咖啡馆内随意走动，好不悠闲！与猫作伴，乐享下午茶时光！", longitude: -0.0706283, latitude: 51.5252772,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_053.png', title: "英国电影协会伦敦IMAX影院", english: "BFI London IMAX Cinema", type: '吃喝玩购', introductions: "英国电影协会伦敦IMAX影院（BFI London IMAX Cinema）位于滑铁卢车站旁，拥有英国最大的投影屏。几乎所有的最新大片都能在这家IMAX影院看到。", longitude: -0.1137731, latitude: 51.5048288,},
+    {x: 65, y: 31, z: -45, spot: 'spot_054.png', title: "圣詹姆斯公园", english: "St James's Park", type: '户外活动', introductions: "圣詹姆斯公园（St James's Park）毗邻白金汉宫、林荫大道（the Mall）、皇家骑兵卫队阅兵场与格林公园。园内有一处湖泊，湖上坐落着“西岛（West Island）”和“鸭岛（Duck Island）”两座小岛。一座名为“蓝桥（Blue Bridge）”的廊桥横跨湖上，站在桥上，举目眺望，伦敦的美丽景致在两侧绿树的映衬下美得如画般让人迷醉。", longitude: -0.1349339, latitude: 51.5024562,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_055.png', title: "特拉法加广场", english: "Trafalgar Square", type: '户外活动', introductions: "特拉法加广场（Trafalgar Square）于1844年5月1日建成开放。广场曾因数千只鸽子和众多鸽食商贩聚集的盛景而闻名，但由于鸽粪对广场环境造成严重破坏，2001年，随着政府禁止喂鸽令的实施，这一盛景也不复存在。特拉法加广场还是诸多活动和文化庆典的举办地。英国国家美术馆就坐落在广场的北侧，广场内还矗立着由四座威风凛凛的雄狮青铜雕像镇守的纳尔逊纪念柱。", longitude: -0.1281420, latitude: 51.5080571,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_056.png', title: "泰晤士河水闸和步道", english: "Thames Barrier and Path", type: '户外活动', introductions: "1984年建成的泰晤士河水闸（Thames Barrier）是为伦敦防洪而建的。泰晤士河全长215英里（346公里），沿河而建的泰晤士河步道长184英里（296公里），沿着步道便可饱览这一路的河畔风光。", longitude: 0.0371462, latitude: 51.4952513,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_057.png', title: "海德公园", english: "Hyde Park", type: '户外活动', introductions: "作为英国皇家公园和伦敦规模最大的公园之一，海德公园（Hyde Park）曾举办了许多摇滚和流行音乐会。园内的热门景点有著名的“演讲者之角”(Speakers’ Corner)，可泛舟和畅游的九曲湖（Serpentine Lake）以及纪念戴安娜王妃的戴安娜纪念喷水池。", longitude: -0.1658470, latitude: 51.5072329,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_058.png', title: "灌木公园", english: "Bushy Park", type: '户外活动', introductions: "作为伦敦的第二大皇家公园，灌木公园（Bushy Park）可谓是自然天堂，野生动植物随处可见，其中包括缓缓穿行于丛林间的马鹿和黇鹿。2004年，第一届“公园跑”（parkrun）就在灌木公园举行，当时只有13人参加，如今，这一活动已举办了14.7万场，参加人数超过了200万。", longitude: -0.3398943, latitude: 51.4165201,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_059.png', title: "达利奇公园", english: "Dulwich Park", type: '户外活动', introductions: "达利奇公园（Dulwich Park）坐落在达利奇村（Dulwich Village）和东达利奇区（East Dulwich）之间，邻近达利画廊（Dulwich Picture Gallery）。在这座位于伦敦东南部的公园中，游客可泛舟湖上，租用靠背式自行骑行，享受户外健身的乐趣又或在兵乓球台上切磋较量一番。", longitude: -0.0776494, latitude: 51.4453572,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_060.png', title: "陶尔哈姆莱茨陵园", english: "Tower Hamlets Cemetery Park", type: '户外活动', introductions: "陶尔哈姆莱茨陵园（Tower Hamlets Cemetery Park）是 “壮丽七陵”（Magnificent Seven，伦敦七大维多利亚时期的私人陵园）之一。正因为这里一直鲜为人知，所以才保留了更多令人惊艳的景致，还有着绝佳的自然景观。", longitude: -0.0273819, latitude: 51.5233099,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_061.png', title: "邮差公园", english: "Postman's Park", type: '户外活动', introductions: "在著名的圣保罗大教堂旁坐落着一座名不见经传的公园，这座公园就是邮差公园（Postman's Park）。公园内矗立着乔治·费德里科·沃茨（George Frederic Watts）的自我牺牲英勇精神纪念碑（Memorial to Heroic Self Sacrifice），纪念碑的54块碑石是为了纪念62名牺牲自己挽救他人的大人和孩子。", longitude: -0.0978039, latitude: 51.5167854,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_062.png', title: "赫恩山自行车馆", english: "Herne Hill Velodrome", type: '户外活动', introductions: "建于1891年的赫恩山自行车馆（Herne Hill Velodrome）是世界上最古老的自行车赛场之一，也是1948年夏季奥林匹克运动会的赛场。2017年，赫恩山自行车馆耗资两百万英镑进行翻新，包括新铺设了赛道并新建了一座场馆。", longitude: -0.0906168, latitude: 51.4505568,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_063.png', title: "摄政运河", english: "Regent's Canal", type: '户外活动', introductions: "摄政运河（Regent's Canal）长8.6英里（约14公里），连通帕丁顿盆地（Paddington Basin）、莱姆豪斯盆地（Limehouse Basin）和泰晤士河。沿着运河漫步或骑车，可途经小威尼斯（Little Venice）、卡姆登（Camden）和摄政公园，尽享沿途美景。", longitude: -0.1029513, latitude: 51.5281374,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_064.png', title: "Soho七鼻雕塑", english: "The Seven Noses of Soho", type: '奇妙伦敦', introductions: "“Soho”一词来源于中世纪时期打猎时的呐喊声。1997年，艺术家里克·巴克利（Rick Buckley）悄悄地在Soho区内各处建筑上放置了约30个根据他自己鼻子制成的石膏模型，以此对区内安装过多的闭路电视表示抗议。经协调，最终有七个石膏雕塑（The Seven Noses of Soho）留在了建筑上，据传，财运会降临到找齐这七个鼻子雕塑的人身上。", longitude: -0.1287804, latitude: 51.5067968,},
+    {x: 55, y: 35, z: -68, spot: 'spot_065.png', title: "特洛菲特理发店", english: "Truefitt and Hill", type: '奇妙伦敦', introductions: "创立于1805年的特洛菲特理发店（Truefitt and Hill）是世界上历史最悠久的理发店，也是英国皇室的御用理发店。", longitude: -0.1389679, latitude: 51.5058921,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_066.png', title: "特鲁里街皇家歌剧院", english: "Theatre Royal Drury Lane", type: '奇妙伦敦', introductions: "伦敦的特鲁里街皇家歌剧院（Theatre Royal Drury Lane）因闹鬼最严重而名声大噪，但这丝毫不影响人们来此参观的热情。自1663年开业以来，剧院就一直为大众奉上精彩的演出。剧院内设有两个皇家包厢，去，，历任英国君主都曾光临特鲁里街皇家歌剧院。", longitude: -0.1223207, latitude: 51.5123183,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_067.png', title: "Junkyard 高尔夫俱乐部", english: "Junkyard Golf", type: '奇妙伦敦', introductions: "Junkyard高尔夫俱乐部位于老杜鲁门酿酒厂（Old Truman Brewery）内，俱乐部设有4个与众不同、设施一流的室内迷你9洞高尔夫球场。", longitude: -0.0725981, latitude: 51.5209797,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_068.png', title: "Whistle Punks 掷斧中心", english: "Whistle Punks Axe Throwing", type: '奇妙伦敦', introductions: "在Whistle Punks掷斧中心跟着私人掷斧教练学习专业掷斧技术，然后与同伴切磋较量一番，看看谁能摘得掷斧之王或掷斧之后的桂冠。", longitude: -0.1253338, latitude: 51.4834950,},
+    {x: -58, y: 32, z: 11, spot: 'spot_069.png', title: "Barn the Spoon 木勺店", english: "Barn the Spoon", type: '奇妙伦敦', introductions: "位于哈克尼区（Hackney）的Barn the Spoon是一家精美木勺专卖店，店内还会开设木勺雕刻课程。", longitude: -0.0693070, latitude: 51.5308481,},
+    {x: 65, y: 33, z: -45, spot: 'spot_070.png', title: "白金汉宫", english: "Buckingham Palace", type: '走近王室', introductions: "虽然皇室早在1761年就买下了白金汉宫（Buckingham Palace），但直至1837年维多利亚女王搬入这里，白金汉宫才正式成为皇室的寝宫。二战期间，白金汉宫共遭到七次轰炸，1940年，宫内的小教堂在轰炸中被摧毁。", longitude: -0.1420072, latitude: 51.5013858,},
+    {x: 65, y: 45, z: -45, spot: 'spot_071.png', title: "温莎城堡", english: "Windsor Castle", type: '走近王室', introductions: "作为皇室在温莎的官邸，温莎城堡（Windsor Castle）是当今世上有人居住的城堡中历史最悠久，面积最大的一个，同时也是欧洲持续使用时间最长的宫殿。历代皇室成员已在此居住近千年。1992年，温莎城堡发生大火，城堡内有一百多间房间遭到破坏，修复工作耗资逾4000万英镑。", longitude: -0.6045501, latitude: 51.4839015,},
+    {x: 65, y: 45, z: -65, spot: 'spot_072.png', title: "圣詹姆士宫", english: "St James' Palace", type: '走近王室', introductions: "圣詹姆士宫（St James' Palace）曾作为多任英国君主的官邸长达3个世纪之久，直至维多利亚女王搬离这里。如今，作为一些皇室成员的居住和办公地，圣詹姆士宫的繁忙景象依旧，许多正式的接待会和活动都会在这里举行。 ", longitude: -0.1379695, latitude: 51.5045793,},
+    {x: 70, y: 53, z: -60, spot: 'spot_073.png', title: "肯辛顿宫", english: "Kensington Palace", type: '走近王室', introductions: "肯辛顿宫（Kensington Palace）是维多利亚女王童年时期的居住地，也是戴安娜王妃的故居，戴安娜王妃在1997年离世前，就住在肯辛顿宫的8号房。剑桥公爵威廉王子、剑桥公爵夫人凯瑟琳和哈里王子目前就居住在肯辛顿宫。", longitude: -0.1878496, latitude: 51.5058160,},
+    {x: 75, y: 42, z: -10, spot: 'spot_074.png', title: "汉普敦宫", english: "Hampton Court Palace", type: '走近王室', introductions: "汉普敦宫（Hampton Court Palace）原主人是亨利八世首席大臣托马斯·沃尔西，后被亨利八世收归己有。亨利八世正是在汉普敦宫迎娶了其第六任，也是最后一任妻子。", longitude: -0.3379115, latitude: 51.4036084,},
+    {x: 30, y: 10, z: -60, spot: 'spot_075.png', title: "皇家骑兵卫队阅兵场", english: "Horse Guards Parade", type: '走近王室', introductions: "皇家骑兵卫队阅兵场（Horse Guards Parade）这个大型阅兵场位于白厅（Whitehall）不远处，每年这里都会举行皇家军队阅兵，庆祝英国君主的官方生日。每逢工作日上午11时和周日上午10时，游客都能看到女王卫兵的换岗仪式。", longitude: -0.1281607, latitude: 51.5047584,},
+    {x: 70, y: 18, z: 8, spot: 'spot_076.png', title: "威斯敏斯特教堂", english: "Westminster Abbey", type: '走近王室', introductions: "如今的威斯敏斯特教堂（Westminster Abbey）是由亨利三世于1245年下令开始重建，理查二世统治时期（1377年-1399年）完成重建。在1760年之前，大部分君主死后都被埋葬在这里。威斯敏斯特教堂还见证了16场皇室婚礼。艾萨克·牛顿、查尔斯·达尔文和威廉·威尔伯福斯也长眠于此。", longitude: -0.1274141, latitude: 51.4993179,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_077.png', title: "圣保罗大教堂", english: "St. Paul's Cathedral", type: '走近王室', introductions: "原圣保罗大教堂（St. Paul's Cathedral）在伦敦大火中毁于一旦。后来，政府从煤炭税收中拨款进行重建，1711年圣诞节当日，议会宣布圣保罗大教堂竣工。这座出自英国著名设计大师和建筑家克托弗·雷恩爵士（Sir Christopher Wren）之手的大教堂是其旧址附近修建的第五座教堂，威灵顿公爵和纳尔逊勋爵都被埋葬在这座大教堂内，教堂内还坐落着弗罗伦斯·南丁格尔和阿拉伯的劳伦斯纪念碑。", longitude: -0.0983924, latitude: 51.5138028,},
+    {x: 60, y: 20, z: -1, spot: 'spot_078.png', title: "议会大厦", english: "Houses of Parliament", type: '走近王室', introductions: "议会大厦（Houses of Parliament）又被称为威斯敏斯特宫。议会大厦内的下议院厅（英国人民选举代表民众的下议院议员的地方）和上议院厅（非民主选举产生的上议院议员对下议院议员通过的法案进行审议的地方）就是议会的办公场所。在议会大厦中死亡属于非法行为。", longitude: -0.1247630, latitude: 51.4997484,},
+    {x: 55, y: 17, z: 0, spot: 'spot_079.png', title: "大本钟", english: "Big Ben", type: '著名地标', introductions: "虽然人们习惯将钟塔称为“大本钟（Big Ben）”，但“大本钟”的本意是指钟塔上的大钟。钟塔的正式名称是伊丽莎白塔，钟塔朝西北方向倾斜约230毫米。1949年，一群椋鸟停歇到分针上，导致大钟走慢了4.5分钟。", longitude: -0.1247142, latitude: 51.5007574,},
+    {x: -100, y: 60, z: 40, spot: 'spot_080.png', title: "瑞士再保险总部大楼（小黄瓜）", english: "The Gherkin", type: '著名地标', introductions: "瑞士再保险总部大楼（The Gherkin）位于圣玛丽斧街30号，绰号“小黄瓜”，整座建筑只在顶部用了一块曲面玻璃。瑞士再保险总部大楼共由7429块玻璃和35千米的钢材建成。大楼最宽处周长为178米，仅比大楼的高度少两米。", longitude: -0.0804192, latitude: 51.5145039,},
+    {x: -75, y: 45, z: 40, spot: 'spot_081.png', title: "伦敦塔", english: "Tower of London", type: '著名地标', introductions: "伦敦塔（Tower of London）的官方名称是“女王陛下的宫殿与城堡”，始建于1078年，1285年重建，1377年-1399年进行扩建。伦敦塔内的珍宝馆（the Crown Jewels）藏有2.35万件珠宝，总价值高达200亿英镑。现在塔里养着六只渡鸦，相传，渡鸦离塔之日就是大英帝国覆灭之日（因此渡鸦的羽翼被修剪过，当地人甚至还准备了备用渡鸦）。", longitude: -0.0759925, latitude: 51.5081153,},
+    {x: -75, y: 42, z: 40, spot: 'spot_082.png', title: "伦敦塔桥", english: "Tower Bridge", type: '著名地标', introductions: "1894年开通的伦敦塔桥（Tower Bridge）是伦敦最具特色的桥梁。伦敦塔桥的建造不仅满足了行人车辆在桥上通行的需求，还使得船舶可以在桥下通行。1952年，一辆伦敦公共汽车还曾在塔桥即将分开之际加速飞跃过桥，当时的惊险场景至今令人记忆犹新。", longitude: -0.0760498, latitude: 51.5081129,},
+    {x: -47, y: 42, z: 40, spot: 'spot_083.png', title: "碎片大厦", english: "The Shard", type: '著名地标', introductions: "由著名建筑师伦佐·皮亚诺设计的碎片大厦（The Shard）于2012年竣工，大厦集办公楼、餐厅、酒吧、酒店和公寓于一身。碎片大厦的建造团队采用了在建造上层建筑主体的同时挖掘地基的方法，开创了英国由上至下建造大楼的先河。", longitude: -0.0866225, latitude: 51.5045136,},
+    {x: 28, y: 49, z: -80, spot: 'spot_084.png', title: "温布利体育场", english: "Wembley Stadium", type: '著名地标', introductions: "旧的温布利体育场（Wembley Stadium）在2003年被拆除，重建的温布利体育场于2007年开放使用。温布利体育场是诸多重要足球赛的赛场，其中包括英格兰的主场球赛和英格兰足球杯总决赛。此外，这里也是许多大型演唱会的举办场地，在这里举办过演唱会的歌手包括酷玩乐队、艾德·希兰和U2摇滚乐队。温布利体育场内共设有9万个座位，观众容量居英国第一，欧洲第二。此外，温布利体育场还是全球厕所数量（2618间）最多的足球场。", longitude: -0.2796320, latitude: 51.5560397,},
+    {x: 8, y: 30, z: -70, spot: 'spot_085.png', title: "纳尔逊纪念柱", english: "Nelson's Column", type: '著名地标', introductions: "作为特拉法加广场最重要的景点，纳尔逊纪念柱（Nelson's Column）纪念的是英国史上最英勇的人物之一海军上将霍雷肖·纳尔逊。纳尔逊纪念柱的底座有四幅由俘获的枪支融化雕刻而成浮雕，这四幅浮雕描绘的分别是海军上将纳尔逊在圣文森特角战役、尼罗河战役和哥本哈根战役中的胜利。这里还记录了特拉法加海战，海军上将纳尔逊正是在这次海战中遭一名法国狙击兵袭击阵亡。", longitude: -0.1280757, latitude: 51.5077768,},
+    {x: -12.5, y: 44, z: -70, spot: 'spot_086.png', title: "英国电信塔", english: "BT Tower", type: '著名地标', introductions: "作为英国原电子通信系统枢纽的英国电信塔（BT Tower）是英国首都伦敦最具特色的建筑之一。2011年9月，电信塔顶部向高空发射出一道长200米的光束，让电信塔看起来就像是一把巨大的星球大战光剑。", longitude: -0.1390330, latitude: 51.5214598,},
+    {x: -53, y: 19, z: 30, spot: 'spot_087.png', title: "莎士比亚环球剧场", english: "Shakespeare's Globe", type: '著名地标', introductions: "二次重建的莎士比亚环球剧场（Shakespeare's Globe）位于原址不远处，于1997年开放。原莎士比亚环球剧场由演员理查德·伯比奇出资，木匠彼得·史密斯（Peter Smith）及其施工团队循环利用伯比奇父亲在肖迪奇的“剧场”（The Theatre）的木材建造而成，建造工程从1597年动工，1599年竣工，耗时两年。1613年，舞台上用于制作特效的一门大炮出现意外，引发火灾，莎士比亚环球剧场被大火焚毁。环球剧场于1614年重建，但却在1643年和所有其他剧场一样被清教徒关闭。", longitude: -0.0973152, latitude: 51.5080458,},
+    {x: 30, y: 36, z: -65, spot: 'spot_088.png', title: "尼斯登神庙", english: "Shri Swaminarayan Mandir (Neasden Temple)", type: '著名地标', introductions: "Shri Swaminarayan Mandir（尼斯登神庙）是正宗的印度神庙，依照吠陀梵语建筑古籍所建，完全采用传统的建筑材料和方法，没有使用任何高强度建筑用钢。神庙免费对外开放，开放时间是每天9：00-18：00。", longitude: -0.2608650, latitude: 51.5475963,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_089.png', title: "泰特现代美术馆", english: "Tate Modern", type: '著名地标', introductions: "泰特现代美术馆（Tate Modern）位于河岸发电站（Bankside Power Station）原址之上，与圣保罗大教堂隔河相望。烟囱高99米（特意低于大教堂圆顶的高度），整座建筑共用了约420万块石砖。", longitude: -0.0993841, latitude: 51.5079487,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_090.png', title: "伦敦眼航游", english: "The London Eye River Cruise", type: '必游之地', introductions: "在40分钟的环形航游途中，一边欣赏泰晤士河的沿途美景，一边聆听船内或甲板上播放的生动有趣的实时讲解。千万别错过了蔚为壮观的可口可乐伦敦眼和伊丽莎白塔！", longitude: -0.1197211, latitude: 51.5029161,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_091.png', title: "野生鸟类和湿地基金会伦敦湿地中心", english: "WWT London Wetland Centre", type: '必游之地', introductions: "野生鸟类和湿地基金会伦敦湿地中心（WWT London Wetland Centre）是各种鸟类、水禽和鱼类的天堂，就连水獭和水龟都在这里找到了他们理想的栖居之所。沿着湖泊、池塘和花园漫步，在这隐匿于繁华都市的世外桃源中回归自然的怀抱。", longitude: -0.2354971, latitude: 51.4765094,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_092.png', title: "获素城市农场", english: "Vauxhall City Farm", type: '必游之地', introductions: "在朗伯斯区邂逅美洲鸵、驴子、山羊、绵羊、小猪、豚鼠、兔子和鸭子！获素城市农场（Vauxhall City Farm）属于慈善农场，是伤健策骑协会的中心。农场免费开放，欢迎游人乐捐！", longitude: -0.1191474, latitude: 51.4871370,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_093.png', title: "斯必图菲特农场", english: "Spitalfields City Farm", type: '必游之地', introductions: "从红砖巷步行一会儿就能来到这个可爱的小农场。运气不错的话，您还能看到绵羊剪毛的场景，邂逅憨态可掬的小羔羊和小鸡，或是碰上一年一度的牛津剑桥山羊趣味赛跑比赛。", longitude: -0.0675068, latitude: 51.5221015,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_094.png', title: "肖尔迪奇盒子公园", english: "BOXPARK Shoreditch", type: '必游之地', introductions: "肖尔迪奇盒子公园（BOXPARK Shoreditch）由英国潮牌Boxfresh的Robert Wade创立，他们将集装箱打造成汇集潮流商铺、酒吧和餐馆的迷你潮流购物中心，创意十足。 ", longitude: -0.0765640, latitude: 51.5235321,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_095.png', title: "一英里柏蒙西啤酒厂区", english: "The Bermondsey Beer Mile", type: '必游之地', introductions: "在这条绵延一英里的街区上，聚集了伦敦最好的六家精酿啤酒厂Southwark Brewing Company、The Kernel、Brew By Numbers、Fourpure Brewing Co、Partizan Brewing和 Anspach & Hobday。若能去遍这六家啤酒厂就真的不虚此行了！", longitude: -0.0770486, latitude: 51.5006490,},
+    {x: -40, y: 33, z: -60, spot: 'spot_096.png', title: "英国皇家大剧院", english: "Royal Opera House", type: '必游之地', introductions: "位于科芬园的英国皇家大剧院（Royal Opera House）是英国皇家剧团（Royal Opera）和皇家芭蕾舞团（Royal Ballet）的基地。英国皇家大剧院始建于1732年，后经过两次重建。1734年，英国皇家大剧院迎来了第一场芭蕾舞表演，次年，亨德尔（Handel）的第一季歌剧也开始在这里上演，其中有很多集都是专门为这家位于科芬园的剧院而写的。", longitude: -0.1222864, latitude: 51.5129318,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_097.png', title: "老手术室博物馆和草药阁楼", english: "Old Operating Theatre Museum and Herb Garret", type: '必游之地', introductions: "老手术室博物馆和草药阁楼（Old Operating Theatre Museum and Herb Garret）是一个以手术史和医药为主题的博物馆，博物馆的所在地是英国其中一个最古老的现存手术室。", longitude: -0.0885710, latitude: 51.5050218,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_098.png', title: "格林尼治天文台", english: "Royal Observatory Greenwich", type: '必游之地', introductions: "格林尼治天文台（Royal Observatory Greenwich）在天文史和航海史上都占据着重要地位。格林尼治天文台最为人所熟知的就是本初子午线的所经之地，格林威治标准时间的名称也由此而来。", longitude: -0.0006181, latitude: 51.4768344,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_099.png', title: "莱斯特广场", english: "Leicester Square", type: '必游之地', introductions: "这座步行广场的历史最早可追溯到1670年，如今这里已成为了娱乐圣地，影院、娱乐场、餐厅、剧院和酒店云集。许多电影大片的首映礼也在这里举行，说不定您还能在这里碰上走红毯的电影巨星！", longitude: -0.1302217, latitude: 51.5104096,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_100.png', title: "国家肖像馆", english: "National Portrait Gallery", type: '必游之地', introductions: "国家肖像馆（National Portrait Gallery）是全世界收藏肖像数量最多的美术馆。从伊丽莎白一世到大卫·贝克汉姆的肖像，三层高的国家肖像馆陈列着超过一千幅肖像，相信每个人都能在这里觅得惊喜。馆内还藏有诸多艺术家的肖像，其中包括Holbein和Hockney。从画作、雕像、照片到视频，馆内藏品形式之丰富也让人赞叹不已。", longitude: -0.1282332, latitude: 51.5094489,},
+    //{x: -5, y: -15, z: 20, spot: 'spot_101.png', title: "英国国家美术馆", english: "The National Gallery", type: '必游之地', introductions: "英国国家美术馆（The National Gallery）成立于1824年，馆内藏有超过2300幅画作，囊括了13世纪中期到20世纪的作品，其中包括透纳、梵高、莫奈和达芬奇等艺术巨匠的佳作。", longitude: -0.1283741, latitude: 51.5089250,},
+  ]
+  var types = ['默林景点', '著名地标', '走近王室', '吃喝玩购', '户外活动', '奇妙伦敦', '必游之地']
+  var infoSpots = []
+
+  function exchange() {
+    if (isDay) {
+      icon.className = 'night'
+      day.style.opacity = '0'
+      day.style.zIndex = '1'
+      night.style.opacity = '1'
+      night.style.zIndex = '2'
+    } else {
+      icon.className = 'day'
+      day.style.opacity = '1'
+      day.style.zIndex = '2'
+      night.style.opacity = '0'
+      night.style.zIndex = '1'
+    }
+    isDay = !isDay
+  }
+
+  dayViewer = new PANOLENS.Viewer({
+    container: day,
+    controlBar: false,
+    autoHideInfospot: false,
+  });
+  dayPanorama = new PANOLENS.CubePanorama([
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLgRxSvJXwXdP.jpg',// './day_1.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLlhqSgbuiixY.jpg',// './day_3.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLnRGYNIBxplg.jpg',// './day_4.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLpjUwBIjRkVB.jpg',// './day_5.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLeeOIGHhJYLh.jpg',// './day_0.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLjBwWTAHtCuy.jpg',// './day_2.jpg',
+  ]);
+  dayViewer.add(dayPanorama);
+
+  nightViewer = new PANOLENS.Viewer({
+    container: night,
+    controlBar: false,
+    autoHideInfospot: false,
+  });
+  nightPanorama = new PANOLENS.CubePanorama([
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLuPnKEMMRSFb.jpg',// './night_1.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLzyAjJTTJxwj.jpg',// './night_3.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oM1hQOquEwGey.jpg',// './night_4.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oM3yBywICcgim.jpg',// './night_5.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLshDgUEMrbPy.jpg',// './night_0.jpg',
+    'https://cloud-minapp-20150.cloud.ifanrusercontent.com/1g9oLxuomCobKRDy.jpg',// './night_2.jpg',
+  ]);
+  nightViewer.add(nightPanorama);
+
+  function onTypeClick(index) {
+    return function () {
+      var typeActive = document.querySelector('.type.active')
+      var type = document.querySelector('.type:nth-child(' + (index + 1) + ')')
+      if (typeActive) {
+        typeActive.className = 'type'
+      }
+      type.className = 'type active'
+      info.className = 'close'
+      infoSpots.map(function (infoSpot) {
+        infoSpot.dispose()
+      })
+      infoSpots = []
+      parameters
+        .filter(function (item) {
+          return item.type === types[index]
+        })
+        .map(function (parameter) {
+          PANOLENS.Utils.ImageLoader.load(parameter.spot, function () {
+            var position = new THREE.Vector3(parameter.x, parameter.y, parameter.z);
+            var dayInfoSpot = new PANOLENS.Infospot(4, parameter.spot, false);
+            dayInfoSpot.position.copy(position);
+            dayInfoSpot.addEventListener('click', onFocus(parameter));
+            dayPanorama.add(dayInfoSpot);
+            infoSpots.push(dayInfoSpot)
+            dayInfoSpot.show()
+            var nightInfoSpot = new PANOLENS.Infospot(4, parameter.spot, false);
+            nightInfoSpot.position.copy(position);
+            nightInfoSpot.addEventListener('click', onFocus(parameter));
+            nightPanorama.add(nightInfoSpot);
+            infoSpots.push(nightInfoSpot)
+            nightInfoSpot.show()
+          })
+        })
+    }
+  }
+
+  types.map(function (type, index) {
+    typeListContent.innerHTML = typeListContent.innerHTML +
+      '<div class="type" onclick="onTypeClick(' + index + ')()">' + type + '</div>'
+  })
+
+  onTypeClick(0)()
+
+  function onFocus(parameter) {
+    return function () {
+      info.className = ''
+      title.innerText = parameter.title
+      introductions.innerText = parameter.introductions
+      this.focus(1000, TWEEN.Easing['Exponential']['Out']);
+    }
+  }
+
+  function closeInfo() {
+    info.className = 'close'
+  }
+
+</script>
+</body>
